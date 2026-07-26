@@ -230,10 +230,11 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
       }
       return { data: { url: location, provider }, error: null };
     }
-    let data: { url?: string; authorization_url?: string } | null = null;
+    let data: { url?: string; authorization_url?: string; error_description?: string; msg?: string; message?: string; error_code?: string } | null = null;
+    let rawText = '';
     try {
-      const text = await resp.text();
-      data = text ? (JSON.parse(text) as { url?: string; authorization_url?: string }) : null;
+      rawText = await resp.text();
+      data = rawText ? (JSON.parse(rawText) as { url?: string; authorization_url?: string; error_description?: string; msg?: string; message?: string; error_code?: string }) : null;
     } catch {
       data = null;
     }
@@ -248,7 +249,12 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
         message?: string;
         error_code?: string;
       };
-      const detail = obj.error_description || obj.msg || obj.message || `Supabase responded with HTTP ${resp.status}`;
+      const detail = obj.error_description || obj.msg || obj.message || (resp.status >= 400 ? `Supabase responded with HTTP ${resp.status} (no error message in body)` : `Supabase responded with HTTP ${resp.status}`);
+      // Always log the raw response so the user can paste it from DevTools
+      // if the displayed message is generic (Supabase sometimes returns
+      // HTML or an empty body that does not parse as JSON).
+      // eslint-disable-next-line no-console
+      console.error('[supabaseAuth] /authorize failed', { status: resp.status, contentType: resp.headers.get('content-type'), body: rawText.slice(0, 2000) });
       const error = new Error(`Could not start OAuth flow with provider "${provider}": ${detail}`) as Error & { status: number; code: string };
       error.status = resp.status;
       error.code = obj.error_code || `http_${resp.status}`;
