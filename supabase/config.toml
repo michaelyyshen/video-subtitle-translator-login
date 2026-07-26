@@ -1,12 +1,1 @@
-{
-  "project": {
-    "name": "video-subtitle-translator",
-    "framework": "nextjs"
-  },
-  "scripts": {
-    "start": "supabase start",
-    "deploy": "supabase functions deploy",
-    "db:push": "supabase db push",
-    "lint": "deno lint supabase/functions"
-  }
-}
+project_id = "lzubnnlstujwjficryac"
