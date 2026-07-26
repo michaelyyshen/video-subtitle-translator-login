@@ -239,8 +239,19 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
     }
     const finalUrl = (data && (data.url || data.authorization_url)) || null;
     if (!resp.ok || !finalUrl) {
-      const error = new Error(`Could not start OAuth flow with provider "${provider}".`) as Error & { status: number };
+      // Surface the actual Supabase error (e.g. provider not enabled,
+      // wrong anon key, redirect URL not allowed) instead of a generic
+      // message, so we can diagnose without guesswork.
+      const obj = (data && typeof data === 'object' ? (data as Record<string, unknown>) : {}) as {
+        error_description?: string;
+        msg?: string;
+        message?: string;
+        error_code?: string;
+      };
+      const detail = obj.error_description || obj.msg || obj.message || `Supabase responded with HTTP ${resp.status}`;
+      const error = new Error(`Could not start OAuth flow with provider "${provider}": ${detail}`) as Error & { status: number; code: string };
       error.status = resp.status;
+      error.code = obj.error_code || `http_${resp.status}`;
       return { data: { url: null, provider }, error };
     }
     return { data: { url: finalUrl, provider }, error: null };
