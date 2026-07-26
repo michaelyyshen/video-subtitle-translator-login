@@ -4,6 +4,7 @@
 // localStorage so the user stays signed in across browser tabs and reloads.
 
 const STORAGE_KEY = 'vst.sb_session';
+const PKCE_STORAGE_KEY = 'vst.sb_pkce_verifier';
 
 export interface SupabaseUser {
   id: string;
@@ -74,6 +75,38 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
         console.error('auth listener threw', err);
       }
     }
+  }
+
+  // PKCE helpers. The verifier is a random 43-128 char URL-safe string; the
+  // challenge is the base64url-encoded SHA-256 of the verifier. We store the
+  // verifier in localStorage so the same browser/device that initiated the
+  // flow can complete it after the redirect. If Web Crypto is unavailable
+  // (very old browsers), we fall back to a Math.random verifier — the
+  // Supabase server still requires it, but PKCE security is degraded.
+  function generateCodeVerifier(): string {
+    const bytes = new Uint8Array(32);
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    }
+    return base64UrlEncode(bytes);
+  }
+
+  async function deriveCodeChallenge(verifier: string): Promise<string> {
+    if (typeof crypto !== 'undefined' && crypto.subtle && typeof TextEncoder !== 'undefined') {
+      const data = new TextEncoder().encode(verifier);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return base64UrlEncode(new Uint8Array(digest));
+    }
+    return verifier;
+  }
+
+  function base64UrlEncode(bytes: Uint8Array): string {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const b64 = (typeof btoa === 'function' ? btoa(bin) : Buffer.from(bytes).toString('base64'));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
   async function request<T = unknown>(path: string, body: unknown, headers: Record<string, string> = {}): Promise<T> {
@@ -201,6 +234,11 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
       }
     }
     writeSession(null);
+    try {
+      store.removeItem(PKCE_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
     notify('SIGNED_OUT', null);
   }
 
@@ -208,6 +246,20 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
     const params = new URLSearchParams();
     if (options?.redirectTo) params.set('redirect_to', options.redirectTo);
     if (options?.scopes) params.set('scopes', options.scopes);
+
+    // PKCE: generate and persist a verifier so the callback can complete the
+    // token exchange. Without this, /token?grant_type=pkce rejects the request
+    // with "code_verifier required" — Google sign-in would fail silently.
+    const verifier = generateCodeVerifier();
+    const challenge = await deriveCodeChallenge(verifier);
+    params.set('code_challenge', challenge);
+    params.set('code_challenge_method', 's256');
+    try {
+      store.setItem(PKCE_STORAGE_KEY, verifier);
+    } catch {
+      /* storage full / disabled — flow will fail later with a clear message */
+    }
+
     const query = params.toString();
     const path = `/authorize?provider=${encodeURIComponent(provider)}${query ? `&${query}` : ''}`;
 
@@ -226,6 +278,11 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
       if (!location) {
         const error = new Error(`Supabase did not return a redirect URL for provider "${provider}".`) as Error & { status: number };
         error.status = resp.status;
+        try {
+          store.removeItem(PKCE_STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
         return { data: { url: null, provider }, error };
       }
       return { data: { url: location, provider }, error: null };
@@ -258,22 +315,45 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
       const error = new Error(`Could not start OAuth flow with provider "${provider}": ${detail}`) as Error & { status: number; code: string };
       error.status = resp.status;
       error.code = obj.error_code || `http_${resp.status}`;
+      try {
+        store.removeItem(PKCE_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
       return { data: { url: null, provider }, error };
     }
     return { data: { url: finalUrl, provider }, error: null };
   }
 
   async function exchangeCodeForSession(code: string) {
+    // PKCE: read the verifier we stored when the flow started, send it along
+    // with the auth_code, then clear it so it can never be reused. If the
+    // verifier is missing (storage cleared, different device, expired flow)
+    // we still try the exchange — some Supabase versions accept the request
+    // without it and the server error will explain what to do.
+    let verifier: string | null = null;
+    try {
+      verifier = store.getItem(PKCE_STORAGE_KEY);
+    } catch {
+      verifier = null;
+    }
+    const body: Record<string, string> = { auth_code: code };
+    if (verifier) body.code_verifier = verifier;
     const data = await request<{
       access_token?: string;
       refresh_token?: string;
       expires_in?: number;
       token_type?: string;
       user?: SupabaseUser;
-    }>('/token?grant_type=pkce', { auth_code: code });
+    }>('/token?grant_type=pkce', body);
     const session = buildSession(data);
     writeSession(session);
     if (session) notify('SIGNED_IN', session);
+    try {
+      store.removeItem(PKCE_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
     return { data: { session, user: session?.user ?? null }, error: null };
   }
 

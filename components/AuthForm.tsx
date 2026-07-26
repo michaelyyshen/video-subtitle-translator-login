@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { callFunction, getSession, signIn, signInWithOAuth, signUp } from '@/lib/auth';
+import { getSession, signIn, signInWithOAuth, signUp } from '@/lib/auth';
 import { isSupabaseConfigured, siteConfig } from '@/lib/config';
 
 type Mode = 'login' | 'signup';
@@ -34,12 +34,9 @@ export function AuthForm({ mode }: Props) {
     (async () => {
       const session = await getSession();
       if (!active || !session) return;
-      try {
-        await callFunction('create-portal-session');
-        router.replace('/account');
-      } catch {
-        router.replace('/pricing');
-      }
+      // Already signed in — bounce to /account. Don't pre-fetch anything; the
+      // account page handles its own data loading and tolerates failures.
+      router.replace('/account');
     })();
     return () => {
       active = false;
