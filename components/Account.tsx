@@ -27,8 +27,23 @@ export function Account() {
         setAccount(null);
         return;
       }
-      const info = await loadAccount();
-      if (active) setAccount(info);
+      // Build the base account info immediately from the session so the page
+      // renders even if the subscription fetch fails (e.g. the subscriptions
+      // table hasn't been provisioned for this user yet, or RLS temporarily
+      // rejects the read). The fetch result just upgrades the subscription
+      // field if it succeeds.
+      const base: AccountInfo = {
+        user: session.user,
+        email: session.user?.email ?? null,
+        subscription: null
+      };
+      if (active) setAccount(base);
+      try {
+        const info = await loadAccount();
+        if (active && info) setAccount(info);
+      } catch {
+        /* keep the session-derived base */
+      }
     })();
     return () => {
       active = false;

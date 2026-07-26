@@ -106,14 +106,23 @@ export async function loadAccount(): Promise<AccountInfo | null> {
         }
       }
     );
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      // eslint-disable-next-line no-console
+      console.error('[auth] loadAccount: subscriptions fetch failed', {
+        status: resp.status,
+        body: await resp.text().catch(() => '')
+      });
+      return null;
+    }
     const rows = (await resp.json()) as SubscriptionRow[];
     return {
       user: session.user,
       email: session.user?.email ?? null,
       subscription: rows?.[0] ?? null
     };
-  } catch {
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[auth] loadAccount: unexpected error', err);
     return null;
   }
 }
