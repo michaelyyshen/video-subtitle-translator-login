@@ -27,7 +27,12 @@ const usd = (code: 'monthly' | 'yearly', amount: number, label: string): Pricing
 
 export const siteConfig: SiteConfig = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  // Prefer the legacy ANON_KEY name; fall back to the new PUBLISHABLE_KEY
+  // name that Supabase's Vercel integration auto-installs.
+  supabaseAnonKey:
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    '',
   stripePublishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
   extensionId: process.env.NEXT_PUBLIC_EXTENSION_ID || '',
   pricing: {
