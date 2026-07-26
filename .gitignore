@@ -35,3 +35,4 @@ next-env.d.ts
 
 # Legacy static site — kept for reference, ignored from build.
 _legacy/
+.env*

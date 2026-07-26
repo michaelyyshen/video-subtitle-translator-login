@@ -28,8 +28,8 @@ The dev server runs on <http://localhost:3000>.
 | `NEXT_PUBLIC_EXTENSION_ID`            | Chrome Web Store extension ID, used for post-checkout refresh        |
 | `NEXT_PUBLIC_SITE_URL`                | Canonical site URL for OG/Twitter metadata (optional)               |
 
-The Edge Functions (under `../supabase/functions`) need the **secret** values
-on the Supabase side — see `../supabase/README.md`.
+The Edge Functions (under `supabase/functions/`) need the **secret** values
+on the Supabase side — see `supabase/README.md`.
 
 ## Deploy on Vercel
 
@@ -43,7 +43,8 @@ on the Supabase side — see `../supabase/README.md`.
 
 After the first deploy, update `extension/lib/config.js` and
 `extension/config.example.js` to point `WEBSITE_ORIGIN` at the production URL
-so the extension's "Sign in" button opens the live site.
+so the extension's "Sign in" button opens the live site. (The companion
+extension lives in the `video-subtitle-translator` repo.)
 
 ## Pages
 
@@ -54,6 +55,7 @@ so the extension's "Sign in" button opens the live site.
 | `/login`     | Email + password sign-in (Supabase Auth)                     |
 | `/signup`    | Email + password sign-up (Supabase Auth)                     |
 | `/account`   | Subscription summary + Stripe Customer Portal                |
+| `/admin`     | Back-office console: list users, grant / extend / revoke subs, promote / demote admins. Visible only to users with `app_metadata.is_admin = true`. |
 | `/donate`    | One-time donations via Stripe Checkout                       |
 | `/privacy`   | Privacy policy                                               |
 | `/terms`     | Terms of service                                             |
@@ -65,7 +67,7 @@ so the extension's "Sign in" button opens the live site.
   the network round-trips that library version brings. It persists the
   session in `localStorage`.
 - All billing flows go through the Supabase Edge Functions in
-  `../supabase/functions/`, which hold the Stripe secret key and the
+  `supabase/functions/`, which hold the Stripe secret key and the
   upstream translation provider key. The website never sees either
   secret.
 - After a successful Stripe checkout, `notifyExtensionCheckout()` pings
@@ -74,20 +76,60 @@ so the extension's "Sign in" button opens the live site.
 - Server components are used everywhere except the auth/billing pages
   (which need client-side state and browser globals).
 
+## Admin console
+
+The `/admin` page is a back-office for listing users and managing their
+subscriptions. It is gated by a per-user `is_admin` claim in
+`auth.users.raw_app_meta_data` (flows through the JWT automatically).
+The Nav only shows the "Admin" menu item when the signed-in user has
+that claim; the edge function re-verifies server-side, so a hand-crafted
+localStorage session cannot grant access.
+
+Two auth modes for the underlying `admin-grant` Edge Function:
+
+- **JWT** — used by the UI. The function calls `auth.getUser(token)` and
+  checks `user.app_metadata.is_admin === true`.
+- **Shared secret** — used as a break-glass and for the original curl
+  one-liner (`x-admin-secret: $ADMIN_GRANT_SECRET`). The audit log
+  records `actor_id = NULL` and `actor_kind = 'break_glass'`.
+
+Every action (grant, extend, revoke, promote, demote) writes a row to
+`public.admin_audit_log` with the actor's id (or null for break-glass),
+the target's id, and a metadata JSONB blob with before/after state.
+
+Full API reference and curl examples live in
+[`supabase/functions/admin-grant/README.md`](supabase/functions/admin-grant/README.md).
+
+To make someone an admin (one-off, from the Supabase SQL editor):
+
+```sql
+update auth.users
+set raw_app_meta_data = raw_app_meta_data || '{"is_admin": true}'::jsonb
+where email = 'someone@example.com';
+```
+
+The migration `20260103000000_admin_console.sql` installs a trigger on
+`auth.users` that deletes the user's `auth.sessions` rows whenever
+`raw_app_meta_data` changes, so the next request picks up the new role.
+
 ## Database schema
 
 The marketing site reads subscription state from `public.subscriptions`
 (via PostgREST) and from `auth.users` (via the Supabase Auth API). The
-schema lives in the **parent extension repo** under
-`../supabase/migrations/` because the same database is shared.
+schema lives in this repo under `supabase/migrations/`.
 
 If you ever need to bootstrap a fresh Supabase project for this site:
 
-1. Copy `supabase/migrations/20260101000000_subscriptions.sql` from this
-   repo into the new project's `supabase/migrations/` directory and run
-   `supabase db push`.
-2. Apply any other migrations the extension relies on (auth triggers,
-   RLS helpers, etc.) from `../supabase/migrations/`.
+1. `supabase db push` from this directory — applies
+   `supabase/migrations/20260101000000_subscriptions.sql` (the
+   `subscriptions` table),
+   `supabase/migrations/20260102000000_paywall_supporting.sql` (the
+   unique index the Stripe webhook's `onConflict: 'user_id'` upsert
+   needs, plus the `donations` and `processed_stripe_events` tables),
+   and
+   `supabase/migrations/20260103000000_admin_console.sql` (the
+   `admin_audit_log` table, an `app_metadata` change trigger on
+   `auth.users`, and the admin SELECT policy on `public.subscriptions`).
 
 Without the `public.subscriptions` table, `/account` will still render
 the email and an "inactive" status — the marketing site now degrades
@@ -96,15 +138,18 @@ gracefully when the table is missing — but subscription-aware UI
 
 ### One-off setup via the Supabase dashboard
 
-If you just want to apply the migration right now without touching the
+If you just want to apply the migrations right now without touching the
 CLI:
 
 1. Open <https://supabase.com/dashboard/project/lzubnnlstujwjficryac/sql/new>
    (replace the project ref with yours).
 2. Paste the contents of
-   `supabase/migrations/20260101000000_subscriptions.sql`.
-3. Click **Run**. This creates `public.subscriptions` with RLS so a
-   signed-in user can only read their own row.
+   `supabase/migrations/20260101000000_subscriptions.sql`,
+   `supabase/migrations/20260102000000_paywall_supporting.sql`, and
+   `supabase/migrations/20260103000000_admin_console.sql`.
+3. Click **Run** for each. This creates `public.subscriptions` with RLS so
+   a signed-in user can only read their own row, and adds the admin
+   console's audit log + `app_metadata` change trigger.
 
 ## Extension entitlement verification
 
@@ -153,33 +198,25 @@ because the extension authenticates with a Bearer token, not cookies.
 
 ## Edge Function CORS
 
-Every Vercel preview deployment (e.g.
-`https://video-subtitle-translator-login-2rnnh07x2.vercel.app`) sends
-cross-origin `fetch` calls to your Supabase project's Edge Functions
-(`create-checkout-session`, `create-portal-session`, etc.). Each Edge
-Function must respond to the preflight `OPTIONS` request with an
-`Access-Control-Allow-Origin` header that matches the calling origin.
+Each Edge Function (`create-checkout-session`, `create-portal-session`,
+`create-donation-session`) returns `Access-Control-Allow-Origin: '*'` on
+its preflight `OPTIONS` response. That is safe here because the functions
+authenticate with a Supabase **Bearer token** in the request (not
+cookies), so the wildcard CORS does not leak the caller's credentials.
 
-The pattern in `../supabase/functions/_shared/cors.ts` is:
-
-```ts
-const ALLOW_ORIGIN_PATTERNS = [
-  /^https:\/\/video-subtitle-translator(-login)?\.vercel\.app$/,
-  /^https:\/\/video-subtitle-translator-login-[a-z0-9]+\.vercel\.app$/, // preview
-  /^http:\/\/localhost:3000$/
-];
-```
-
-If you add a new domain (staging, custom domain, additional preview
-slugs) you must update the allow-list and redeploy the functions:
+If you ever need to lock this down to specific origins (recommended for
+stricter compliance audits), update the `corsHeaders()` helper in
+`supabase/functions/_shared.ts` and the per-function `OPTIONS` handlers
+in the relevant `index.ts` files, then redeploy:
 
 ```bash
-cd ../supabase
+cd supabase
 supabase functions deploy create-checkout-session
 supabase functions deploy create-portal-session
+supabase functions deploy create-donation-session
 ```
 
-Symptoms of a missing origin in the allow-list:
+Symptoms of a missing or wrong origin in the allow-list:
 
 - Browser console: `Access to fetch at '…create-checkout-session' from
   origin '…vercel.app' has been blocked by CORS policy: Response to
