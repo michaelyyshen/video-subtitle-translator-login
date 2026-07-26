@@ -31,7 +31,7 @@ export function Pricing() {
     try {
       const session = await getSession();
       if (!session) {
-        router.push(`/signup?next=${encodeURIComponent(`/pricing?plan=${plan}`)}`);
+        router.push(`/login?next=${encodeURIComponent(`/pricing?plan=${plan}`)}`);
         return;
       }
       const { url } = await callFunction<{ url: string }>('create-checkout-session', { plan });
