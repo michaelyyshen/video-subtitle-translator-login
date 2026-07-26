@@ -27,6 +27,11 @@ export interface SupabaseAuthClient {
   getSession(): Promise<SupabaseSession | null>;
   getUser(): Promise<SupabaseUser | null>;
   onAuthStateChange(cb: (event: string, session: SupabaseSession | null) => void): { data: { subscription: { unsubscribe: () => void } } };
+  signInWithOAuth(args: {
+    provider: string;
+    options?: { redirectTo?: string; scopes?: string };
+  }): Promise<{ data: { url: string | null; provider: string }; error: Error | null }>;
+  exchangeCodeForSession(code: string): Promise<{ data: { session: SupabaseSession | null; user: SupabaseUser | null }; error: Error | null }>;
 }
 
 interface CreateOptions {
@@ -199,10 +204,66 @@ export function createSupabaseAuth({ url, anonKey, storage }: CreateOptions): Su
     notify('SIGNED_OUT', null);
   }
 
+  async function signInWithOAuth({ provider, options }: { provider: string; options?: { redirectTo?: string; scopes?: string } }) {
+    const params = new URLSearchParams();
+    if (options?.redirectTo) params.set('redirect_to', options.redirectTo);
+    if (options?.scopes) params.set('scopes', options.scopes);
+    const query = params.toString();
+    const path = `/authorize?provider=${encodeURIComponent(provider)}${query ? `&${query}` : ''}`;
+
+    // Supabase's /authorize endpoint replies with a 302 to the provider's auth
+    // URL. We deliberately don't follow the redirect — we want the Location
+    // header so we can return it to the caller, who will then redirect the
+    // browser themselves. (If the body does carry the URL — newer Supabase
+    // versions include one — prefer that.)
+    const resp = await fetch(`${url}/auth/v1${path}`, {
+      method: 'GET',
+      redirect: 'manual',
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` }
+    });
+    if (resp.status >= 300 && resp.status < 400) {
+      const location = resp.headers.get('Location');
+      if (!location) {
+        const error = new Error(`Supabase did not return a redirect URL for provider "${provider}".`) as Error & { status: number };
+        error.status = resp.status;
+        return { data: { url: null, provider }, error };
+      }
+      return { data: { url: location, provider }, error: null };
+    }
+    let data: { url?: string; authorization_url?: string } | null = null;
+    try {
+      const text = await resp.text();
+      data = text ? (JSON.parse(text) as { url?: string; authorization_url?: string }) : null;
+    } catch {
+      data = null;
+    }
+    const finalUrl = (data && (data.url || data.authorization_url)) || null;
+    if (!resp.ok || !finalUrl) {
+      const error = new Error(`Could not start OAuth flow with provider "${provider}".`) as Error & { status: number };
+      error.status = resp.status;
+      return { data: { url: null, provider }, error };
+    }
+    return { data: { url: finalUrl, provider }, error: null };
+  }
+
+  async function exchangeCodeForSession(code: string) {
+    const data = await request<{
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      token_type?: string;
+      user?: SupabaseUser;
+    }>('/token?grant_type=pkce', { auth_code: code });
+    const session = buildSession(data);
+    writeSession(session);
+    if (session) notify('SIGNED_IN', session);
+    return { data: { session, user: session?.user ?? null }, error: null };
+  }
+
   function onAuthStateChange(cb: (event: string, session: SupabaseSession | null) => void) {
     listeners.add(cb);
     return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } };
   }
 
-  return { signInWithPassword, signUp, signOut, getSession, getUser, onAuthStateChange };
+  return { signInWithPassword, signUp, signOut, getSession, getUser, onAuthStateChange, signInWithOAuth, exchangeCodeForSession };
 }

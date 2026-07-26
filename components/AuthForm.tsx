@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { signIn, signUp, getSession, callFunction } from '@/lib/auth';
-import { isSupabaseConfigured } from '@/lib/config';
+import { callFunction, getSession, signIn, signInWithOAuth, signUp } from '@/lib/auth';
+import { isSupabaseConfigured, siteConfig } from '@/lib/config';
 
 type Mode = 'login' | 'signup';
 
@@ -20,9 +20,13 @@ export function AuthForm({ mode }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: 'info' | 'error' | 'success' } | null>(null);
 
   const supabaseReady = isSupabaseConfigured();
+  const googleEnabled = supabaseReady && siteConfig.oauthProviders.includes('google');
+  const siteOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const callbackUrl = `${siteOrigin}/auth/callback`;
 
   useEffect(() => {
     if (!supabaseReady) return;
@@ -41,6 +45,32 @@ export function AuthForm({ mode }: Props) {
       active = false;
     };
   }, [router, supabaseReady]);
+
+  async function onGoogle() {
+    if (!supabaseReady) {
+      setMessage({ text: 'Supabase is not configured. Set the public env vars in your Vercel project.', kind: 'error' });
+      return;
+    }
+    setGoogleBusy(true);
+    setMessage(null);
+    try {
+      const { data, error } = await signInWithOAuth('google', { redirectTo: callbackUrl });
+      if (error) {
+        setMessage({ text: error.message || 'Could not start Google sign-in.', kind: 'error' });
+        return;
+      }
+      if (!data.url) {
+        setMessage({ text: 'Could not start Google sign-in. Please try again.', kind: 'error' });
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Something went wrong.';
+      setMessage({ text: msg, kind: 'error' });
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +133,48 @@ export function AuthForm({ mode }: Props) {
             Supabase is not configured yet. Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
             <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to your Vercel project to enable sign-in.
           </p>
+        )}
+
+        {googleEnabled && (
+          <>
+            <button
+              type="button"
+              className="btn btn-oauth btn-block"
+              onClick={onGoogle}
+              disabled={googleBusy || busy}
+              aria-label="Continue with Google"
+            >
+              <svg
+                className="oauth-icon"
+                width="18"
+                height="18"
+                viewBox="0 0 48 48"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  fill="#4285F4"
+                  d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M11.69 28.18c-.44-1.32-.69-2.73-.69-4.18s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"
+                />
+              </svg>
+              <span>{googleBusy ? 'Opening Google…' : 'Continue with Google'}</span>
+            </button>
+            <div className="auth-divider" role="separator" aria-label="or continue with email">
+              <span>or</span>
+            </div>
+          </>
         )}
 
         <form id={formId} onSubmit={onSubmit} autoComplete="on">

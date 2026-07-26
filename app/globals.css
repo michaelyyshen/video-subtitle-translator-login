@@ -134,6 +134,37 @@
   .nav-links a { @apply text-ink-muted text-sm no-underline transition-colors; }
   .nav-links a:hover { color: var(--text); }
 
+  /* Nav user chip (logged-in state) */
+  .nav-user { @apply relative; }
+  .nav-user-chip {
+    @apply inline-flex items-center gap-2.5 px-2.5 py-1.5 rounded-full border cursor-pointer transition;
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.1);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .nav-user-chip:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
+  .nav-user-avatar {
+    @apply grid place-items-center text-white text-[11px] font-bold;
+    width: 24px; height: 24px;
+    background: linear-gradient(135deg, var(--indigo), var(--violet));
+    border-radius: 50%;
+  }
+  .nav-user-email { @apply max-w-[160px] truncate; }
+  .nav-user-menu {
+    @apply absolute right-0 top-[calc(100%+8px)] min-w-[180px] py-1.5 rounded-xl border shadow-2xl;
+    background: var(--bg-soft);
+    border-color: var(--border);
+    z-index: 60;
+  }
+  .nav-user-link {
+    @apply block w-full text-left px-4 py-2 text-sm no-underline transition-colors cursor-pointer border-0 bg-transparent;
+    color: var(--text-muted);
+  }
+  .nav-user-link:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-user-link.is-button { font: inherit; }
+
   /* Hero */
   .hero { @apply relative pt-[150px] pb-0 overflow-hidden; }
   .hero-inner { @apply grid lg:grid-cols-[1.05fr_1fr] gap-16 items-center; }
@@ -346,6 +377,34 @@
   .auth-switch { @apply text-center text-sm text-ink-muted mt-6; }
   .auth-switch a { color: #a5b4fc; }
   .auth-switch a:hover { text-decoration: underline; }
+
+  /* OAuth buttons + divider (in AuthForm) */
+  .btn-oauth {
+    @apply text-ink;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 11px 18px;
+    font-size: 14px;
+    border-radius: var(--radius-sm);
+  }
+  .btn-oauth:hover:not(:disabled) {
+    background: rgba(255,255,255,0.09);
+    border-color: rgba(255,255,255,0.22);
+    transform: translateY(-2px);
+  }
+  .btn-oauth:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .oauth-icon { @apply shrink-0; }
+  .auth-divider {
+    @apply flex items-center gap-3 my-5 text-[12px] uppercase tracking-wider;
+    color: var(--text-dim);
+  }
+  .auth-divider::before,
+  .auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
 
   /* Account */
   .account-container { @apply max-w-[560px] mx-auto; }

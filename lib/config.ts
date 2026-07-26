@@ -16,6 +16,7 @@ export interface SiteConfig {
   stripePublishableKey: string;
   extensionId: string;
   pricing: { monthly: PricingPlan; yearly: PricingPlan };
+  oauthProviders: string[];
 }
 
 const usd = (code: 'monthly' | 'yearly', amount: number, label: string): PricingPlan => ({
@@ -24,6 +25,18 @@ const usd = (code: 'monthly' | 'yearly', amount: number, label: string): Pricing
   label,
   priceId: process.env[`NEXT_PUBLIC_STRIPE_PRICE_${code.toUpperCase()}`] || ''
 });
+
+function parseOauthProviders(raw: string | undefined): string[] {
+  // Comma-separated list of provider names (e.g. "google,github,apple").
+  // Undefined / empty falls back to ["google"] so the social button is
+  // shown by default; set NEXT_PUBLIC_SUPABASE_OAUTH_PROVIDERS="" to hide.
+  if (raw === undefined) return ['google'];
+  const list = raw
+    .split(',')
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean);
+  return list;
+}
 
 export const siteConfig: SiteConfig = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -38,7 +51,8 @@ export const siteConfig: SiteConfig = {
   pricing: {
     monthly: usd('monthly', 499, 'Monthly'),
     yearly: usd('yearly', 4999, 'Yearly')
-  }
+  },
+  oauthProviders: parseOauthProviders(process.env.NEXT_PUBLIC_SUPABASE_OAUTH_PROVIDERS)
 };
 
 export function isSupabaseConfigured() {

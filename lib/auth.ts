@@ -43,6 +43,14 @@ export function onAuthStateChange(cb: (event: string, session: SupabaseSession |
   return getClient().onAuthStateChange(cb);
 }
 
+export async function signInWithOAuth(provider: string, options?: { redirectTo?: string; scopes?: string }) {
+  return getClient().signInWithOAuth({ provider, options });
+}
+
+export async function exchangeCodeForSession(code: string) {
+  return getClient().exchangeCodeForSession(code);
+}
+
 export async function callFunction<T = Record<string, unknown>>(name: string, body?: unknown): Promise<T> {
   const token = await getAccessToken();
   const resp = await fetch(`${siteConfig.supabaseUrl}/functions/v1/${name}`, {
