@@ -31,7 +31,7 @@ function initialsFor(email: string | null | undefined): string {
   return (letters[0] + letters[1]).toUpperCase();
 }
 
-function UserMenu({ email, onSignOut }: { email: string; onSignOut: () => void }) {
+function UserMenu({ email, isAdmin, onSignOut }: { email: string; isAdmin: boolean; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -78,6 +78,11 @@ function UserMenu({ email, onSignOut }: { email: string; onSignOut: () => void }
           <Link href="/account" className="nav-user-link" role="menuitem" onClick={() => setOpen(false)}>
             Account
           </Link>
+          {isAdmin && (
+            <Link href="/admin" className="nav-user-link" role="menuitem" onClick={() => setOpen(false)}>
+              Admin
+            </Link>
+          )}
           <button
             type="button"
             className="nav-user-link is-button"
@@ -163,6 +168,8 @@ export function Nav() {
 
   const email = session?.user?.email ?? null;
   const isSignedIn = Boolean(session?.access_token);
+  const isAdmin =
+    (session?.user as { app_metadata?: { is_admin?: boolean } } | null)?.app_metadata?.is_admin === true;
 
   return (
     <nav className={`nav ${scrolled ? 'scrolled' : ''}`}>
@@ -175,7 +182,7 @@ export function Nav() {
               <a href="#faq">FAQ</a>
               <Link href="/pricing">Pricing</Link>
               {isSignedIn && email ? (
-                <UserMenu email={email} onSignOut={handleSignOut} />
+                <UserMenu email={email} isAdmin={isAdmin} onSignOut={handleSignOut} />
               ) : (
                 <>
                   <Link href="/login" className="btn btn-secondary btn-sm">
@@ -192,7 +199,7 @@ export function Nav() {
               <Link href="/#features">Features</Link>
               <Link href="/pricing">Pricing</Link>
               {isSignedIn && email ? (
-                <UserMenu email={email} onSignOut={handleSignOut} />
+                <UserMenu email={email} isAdmin={isAdmin} onSignOut={handleSignOut} />
               ) : (
                 <>
                   <Link href="/login" className="btn btn-secondary btn-sm">

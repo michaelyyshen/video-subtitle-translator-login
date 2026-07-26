@@ -471,6 +471,138 @@
   .donation-status.is-info { background: rgba(99,102,241,0.12); color: var(--text); border-color: rgba(99,102,241,0.35); }
   .donation-status.is-success { background: rgba(16,185,129,0.12); color: #6ee7b7; border-color: rgba(16,185,129,0.35); }
 
+  /* Admin console */
+  .admin-page { @apply min-h-screen pt-32 pb-20; }
+  .admin-card { @apply w-full max-w-[1100px] mx-auto bg-card border rounded-2xl p-8; border-color: var(--border); }
+  .admin-sub { @apply text-ink-muted text-sm; }
+  .admin-banner {
+    @apply w-full max-w-[1100px] mx-auto mb-5 flex items-center gap-3 px-4 py-2.5 rounded-xl border text-sm;
+    background: rgba(99,102,241,0.08);
+    border-color: rgba(99,102,241,0.3);
+    color: var(--text);
+  }
+  .admin-banner-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+    background: linear-gradient(135deg, var(--indigo), var(--violet));
+    box-shadow: 0 0 8px rgba(99,102,241,0.8);
+  }
+  .admin-stats { @apply grid grid-cols-3 gap-4 mb-6; }
+  .admin-stat {
+    @apply flex flex-col gap-0.5 p-4 rounded-xl border;
+    background: rgba(255,255,255,0.025);
+    border-color: var(--border);
+  }
+  .admin-stat-num { @apply text-2xl font-extrabold tracking-tight; }
+  .admin-stat-label { @apply text-[12px] uppercase tracking-wider text-ink-dim font-semibold; }
+  .admin-toolbar { @apply flex items-center gap-3 mb-5; }
+  .admin-search {
+    @apply flex-1 px-3.5 py-2.5 rounded-lg border text-ink outline-none transition;
+    background: rgba(0,0,0,0.3);
+    border-color: var(--border);
+  }
+  .admin-search:focus { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
+  .admin-table-wrap { @apply overflow-x-auto rounded-xl border; border-color: var(--border); }
+  .admin-table { @apply w-full text-sm border-collapse; }
+  .admin-table th, .admin-table td { @apply px-3.5 py-2.5 text-left align-middle; }
+  .admin-table th {
+    @apply text-[11px] uppercase tracking-wider font-semibold text-ink-dim;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--border);
+  }
+  .admin-table tbody tr { border-top: 1px solid var(--border); }
+  .admin-table tbody tr:hover { background: rgba(99,102,241,0.05); }
+  .admin-th-actions { @apply text-right; }
+  .admin-td-actions { @apply text-right whitespace-nowrap; }
+  .admin-td-actions .btn { @apply ml-2; }
+  .admin-td-actions .btn:first-child { @apply ml-0; }
+  .admin-td-email { @apply font-medium; }
+  .admin-empty { @apply text-center text-ink-muted py-10; }
+  .admin-pager { @apply flex items-center justify-end gap-3 mt-5 text-sm; }
+  .admin-pager-info { @apply text-ink-muted; }
+  .admin-pill {
+    @apply inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full;
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+  }
+  .admin-pill-active { background: rgba(16,185,129,0.18); color: #6ee7b7; }
+  .admin-pill-trialing { background: rgba(99,102,241,0.18); color: #c7d2fe; }
+  .admin-pill-past_due { background: rgba(245,158,11,0.18); color: #fcd34d; }
+  .admin-pill-canceled { background: rgba(239,68,68,0.15); color: #fca5a5; }
+  .admin-pill-admin { background: linear-gradient(135deg, var(--indigo), var(--violet)); color: #fff; }
+  .admin-pill-action { @apply text-[10px] uppercase tracking-wider; }
+  .admin-pill-action-grant, .admin-pill-action-extend { background: rgba(16,185,129,0.18); color: #6ee7b7; }
+  .admin-pill-action-revoke { background: rgba(239,68,68,0.15); color: #fca5a5; }
+  .admin-pill-action-promote { background: rgba(99,102,241,0.18); color: #c7d2fe; }
+  .admin-pill-action-demote { background: rgba(245,158,11,0.18); color: #fcd34d; }
+
+  /* Drawer */
+  .admin-drawer { @apply fixed inset-0 z-50; }
+  .admin-drawer-backdrop { @apply absolute inset-0 bg-black/70; }
+  .admin-drawer-panel {
+    @apply absolute right-0 top-0 h-full w-full max-w-[520px] flex flex-col border-l overflow-y-auto;
+    background: var(--bg-soft);
+    border-color: var(--border);
+    box-shadow: -30px 0 80px -20px rgba(0,0,0,0.6);
+  }
+  .admin-drawer-head {
+    @apply flex items-start justify-between gap-4 p-6 border-b sticky top-0 z-[1];
+    background: var(--bg-soft);
+    border-color: var(--border);
+  }
+  .admin-drawer-head h2 { @apply text-lg font-bold tracking-tight; }
+  .admin-drawer-sub { @apply text-[12px] text-ink-dim mt-1 font-mono break-all; }
+  .admin-drawer-close {
+    @apply w-8 h-8 grid place-items-center rounded-lg border text-ink-muted cursor-pointer;
+    background: rgba(255,255,255,0.04);
+    border-color: var(--border);
+  }
+  .admin-drawer-close:hover { background: rgba(255,255,255,0.08); }
+  .admin-drawer-body { @apply p-6 flex flex-col gap-5; }
+  .admin-drawer-actions { @apply flex flex-wrap gap-2; }
+  .admin-drawer-h3 { @apply text-sm uppercase tracking-wider font-bold text-ink-dim mt-2; }
+  .admin-drawer-h3-meta { @apply text-ink-dim text-[11px] font-medium ml-1; }
+  .admin-drawer-dl { @apply grid grid-cols-2 gap-x-4 gap-y-2; }
+  .admin-drawer-dl > div { @apply flex flex-col gap-0.5; }
+  .admin-drawer-dl dt { @apply text-[11px] uppercase tracking-wider text-ink-dim font-semibold; }
+  .admin-drawer-dl dd { @apply text-sm text-ink; }
+
+  .admin-audit { @apply w-full text-xs border-collapse; }
+  .admin-audit th, .admin-audit td { @apply px-2.5 py-2 text-left align-top; }
+  .admin-audit th { @apply text-ink-dim uppercase tracking-wider text-[10px] border-b; border-color: var(--border); }
+  .admin-audit tbody tr { border-top: 1px solid var(--border); }
+  .admin-audit-meta { @apply text-[11px] text-ink-muted break-all; }
+
+  /* Modal */
+  .admin-modal { @apply fixed inset-0 z-50 grid place-items-center p-4; }
+  .admin-modal-panel {
+    @apply relative w-full max-w-[440px] bg-card border rounded-2xl p-6 flex flex-col gap-4;
+    border-color: var(--border);
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.7);
+  }
+  .admin-modal h2 { @apply text-lg font-bold tracking-tight; }
+  .admin-modal-label { @apply flex flex-col gap-1.5 text-sm; }
+  .admin-modal-label > span { @apply text-[12px] font-semibold text-ink-muted; }
+  .admin-modal-label input,
+  .admin-modal-label select {
+    @apply px-3.5 py-2.5 rounded-lg border text-ink outline-none transition;
+    background: rgba(0,0,0,0.3);
+    border-color: var(--border);
+  }
+  .admin-modal-label input:focus,
+  .admin-modal-label select:focus { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
+  .admin-modal-actions { @apply flex justify-end gap-2 mt-2; }
+
+  .btn-danger {
+    @apply text-white;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    padding: 11px 20px;
+    font-size: 14px;
+    border-radius: var(--radius-sm);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 8px 24px -8px rgba(239,68,68,0.6);
+  }
+  .btn-danger:hover:not(:disabled) { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 14px 32px -8px rgba(239,68,68,0.85); }
+  .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
   /* Legal */
   .legal-page { @apply pt-32 pb-24; }
   .legal-container { @apply max-w-[720px] mx-auto; }
