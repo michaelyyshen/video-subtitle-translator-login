@@ -106,6 +106,51 @@ CLI:
 3. Click **Run**. This creates `public.subscriptions` with RLS so a
    signed-in user can only read their own row.
 
+## Extension entitlement verification
+
+The Chrome extension needs a programmatic way to ask "is this signed-in user
+allowed to use paid features?" before it calls the upstream translation
+provider. The marketing site exposes a small JSON endpoint for that:
+
+```
+GET /api/extension/verify
+Authorization: Bearer <supabase_access_token>
+```
+
+Response (always 200 unless the server itself is unhealthy — the extension
+treats every field, not the HTTP status, as the source of truth):
+
+```jsonc
+{
+  "authenticated": true,
+  "entitled": true,
+  "user": { "id": "…", "email": "user@example.com" },
+  "subscription": {
+    "plan": "monthly",
+    "status": "active",
+    "current_period_end": "2026-08-12T00:00:00.000Z"
+  }
+}
+```
+
+Rules:
+
+- `authenticated: false` — the Bearer token is missing or invalid. Extension
+  should send the user to `/login`.
+- `authenticated: true, entitled: false` — user is signed in but has no row
+  in `public.subscriptions`, or the row's status is not `active`/`trialing`
+  (e.g. `past_due`, `canceled`). Extension should send the user to
+  `/pricing`.
+- `authenticated: true, entitled: true` — the extension may call the
+  translation Edge Function with this access token.
+
+The endpoint reads the user's session via `/auth/v1/user` and the
+subscription row via PostgREST (`/rest/v1/subscriptions`). RLS on
+`public.subscriptions` (`20260101000000_subscriptions.sql`) ensures the
+endpoint only ever sees the caller's own row, even if the token were
+mis-used. Responses are `Cache-Control: no-store` and CORS is wide-open
+because the extension authenticates with a Bearer token, not cookies.
+
 ## Edge Function CORS
 
 Every Vercel preview deployment (e.g.
