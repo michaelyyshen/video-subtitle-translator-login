@@ -74,6 +74,74 @@ so the extension's "Sign in" button opens the live site.
 - Server components are used everywhere except the auth/billing pages
   (which need client-side state and browser globals).
 
+## Database schema
+
+The marketing site reads subscription state from `public.subscriptions`
+(via PostgREST) and from `auth.users` (via the Supabase Auth API). The
+schema lives in the **parent extension repo** under
+`../supabase/migrations/` because the same database is shared.
+
+If you ever need to bootstrap a fresh Supabase project for this site:
+
+1. Copy `supabase/migrations/20260101000000_subscriptions.sql` from this
+   repo into the new project's `supabase/migrations/` directory and run
+   `supabase db push`.
+2. Apply any other migrations the extension relies on (auth triggers,
+   RLS helpers, etc.) from `../supabase/migrations/`.
+
+Without the `public.subscriptions` table, `/account` will still render
+the email and an "inactive" status — the marketing site now degrades
+gracefully when the table is missing — but subscription-aware UI
+("Manage billing", the active plan badge) will be blank.
+
+### One-off setup via the Supabase dashboard
+
+If you just want to apply the migration right now without touching the
+CLI:
+
+1. Open <https://supabase.com/dashboard/project/lzubnnlstujwjficryac/sql/new>
+   (replace the project ref with yours).
+2. Paste the contents of
+   `supabase/migrations/20260101000000_subscriptions.sql`.
+3. Click **Run**. This creates `public.subscriptions` with RLS so a
+   signed-in user can only read their own row.
+
+## Edge Function CORS
+
+Every Vercel preview deployment (e.g.
+`https://video-subtitle-translator-login-2rnnh07x2.vercel.app`) sends
+cross-origin `fetch` calls to your Supabase project's Edge Functions
+(`create-checkout-session`, `create-portal-session`, etc.). Each Edge
+Function must respond to the preflight `OPTIONS` request with an
+`Access-Control-Allow-Origin` header that matches the calling origin.
+
+The pattern in `../supabase/functions/_shared/cors.ts` is:
+
+```ts
+const ALLOW_ORIGIN_PATTERNS = [
+  /^https:\/\/video-subtitle-translator(-login)?\.vercel\.app$/,
+  /^https:\/\/video-subtitle-translator-login-[a-z0-9]+\.vercel\.app$/, // preview
+  /^http:\/\/localhost:3000$/
+];
+```
+
+If you add a new domain (staging, custom domain, additional preview
+slugs) you must update the allow-list and redeploy the functions:
+
+```bash
+cd ../supabase
+supabase functions deploy create-checkout-session
+supabase functions deploy create-portal-session
+```
+
+Symptoms of a missing origin in the allow-list:
+
+- Browser console: `Access to fetch at '…create-checkout-session' from
+  origin '…vercel.app' has been blocked by CORS policy: Response to
+  preflight request doesn't pass access control check`.
+- Network tab: preflight returns a non-2xx status, request never
+  reaches the handler.
+
 ## Legacy static site
 
 `website/_legacy/` contains the original static HTML/JS/CSS, kept for
